@@ -48,7 +48,7 @@ def main():
 
                 first = False
 
-            caption = '{}\n{}\n\n{}'.format(submission.title, submission.author['name'], submission.shortlink)
+            caption = '❄     {}\n🙋     {}\n\n{}'.format(submission.title, submission.author.name, submission.shortlink)
 
             candidate_urls = []
 
@@ -149,6 +149,7 @@ def main():
         elapsed_time = time.time() - start_time
 
         if elapsed_time < 20:
+            print('sleeping...')
             time.sleep(120)
 
 
