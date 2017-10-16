@@ -131,18 +131,21 @@ def main():
                         for chunk in response.iter_content(4096):
                             fo.write(chunk)
 
+                    uploaded = False
                     with open(fname, 'rb') as fo:
                         try:
                             updater.bot.send_video(chat_id='@GifsSubreddit', video=fo,
                                                    caption=caption,
                                                    timeout=60)
                             print('upload {}, {}'.format(submission.name, submission.title))
-                            break
+                            uploaded = True
                         except Exception as e:
                             print('{} {}'.format(submission.name, e))
                             pass
 
                     os.remove(fname)
+                    if uploaded:
+                        break
                 else:
                     continue
 
