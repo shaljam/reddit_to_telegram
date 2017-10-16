@@ -36,7 +36,7 @@ def main():
         print('getting submissions after {}'.format(last_id))
         start_time = time.time()
         first = True
-        for submission in reddit.subreddit('gifs').hot(limit=10, params={'before': '{}'.format(last_id)}):
+        for submission in reddit.subreddit('gifs').hot(limit=30, params={'before': '{}'.format(last_id)}):
             if submission.distinguished and submission.distinguished == 'moderator':
                 continue
 
