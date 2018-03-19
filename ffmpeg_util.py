@@ -36,9 +36,15 @@ def scale_video(input_path, output_path, max_size):
         w = -2
         h = max_size
 
+    out_config = {
+        'c:v': 'libx264',
+        'pix_fmt': 'yuv420p',
+        'movflags': 'faststart'
+    }
+
     stream = ffmpeg.input(input_path)
     stream = ffmpeg.filter_(stream, 'scale', width=w, height=h)
-    stream = ffmpeg.output(stream, output_path)
+    stream = ffmpeg.output(stream, output_path, **out_config)
     ffmpeg.run(stream)
 
     return True
