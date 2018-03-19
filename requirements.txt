@@ -4,3 +4,4 @@ ujson
 requests
 praw
 pyimgur
+ffmpeg-python
