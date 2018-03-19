@@ -216,7 +216,7 @@ def main():
         send_a_gif()
 
         sleep_time = 60 * random.randint(50, 70)
-        print('{}: sleeping for ...'.format(utils.beautiful_now(), sleep_time))
+        print('{}: sleeping for {}...'.format(utils.beautiful_now(), sleep_time))
         time.sleep(sleep_time)
 
 
