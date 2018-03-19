@@ -17,6 +17,7 @@ from ffmpeg_util import scale_video
 posts_to_get_every_time = 26
 posts_path = Path('data/posts.json')
 used_posts_path = Path('data/used_posts.json')
+accepted_content_types = ['image/gif', 'video/mp4']
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -112,7 +113,7 @@ def send_to_telegram(post):
 
         # download
         response = requests.get(url, stream=True)
-        if not (response.status_code == 200 and response.headers['content-type'] == 'image/gif'):
+        if not (response.status_code == 200 and response.headers['content-type'] in accepted_content_types):
             continue
 
         file_name = 'downloaded_videos/{}-{}'.format(post_id, int(datetime.now().timestamp() * 1e3))
