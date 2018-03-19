@@ -115,7 +115,7 @@ def send_to_telegram(post):
         if not (response.status_code == 200 and response.headers['content-type'] == 'image/gif'):
             continue
 
-        file_name = 'downloaded_videos/{}'.format(post_id)
+        file_name = 'downloaded_videos/{}-{}'.format(post_id, int(datetime.now().timestamp() * 1e3))
         print('Downloading {}...'.format(file_name))
 
         with open(file_name, 'wb') as fo:
