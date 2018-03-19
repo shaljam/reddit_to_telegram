@@ -86,7 +86,7 @@ def get_new_posts(max_count_to_get):
 
         posts.append({
             'id': submission.name,
-            'process_time': datetime.now(),
+            'process_time': int(datetime.now().timestamp()),
             'caption': caption,
             'candidate_urls': candidate_urls
         })
@@ -154,20 +154,26 @@ def send_to_telegram(post):
 def get_post_to_send():
     posts = utils.load_json(posts_path, [])
     used_posts = utils.load_json(used_posts_path, [])
+    used_posts_ids = list(post['id'] for post in used_posts)
 
-    now = int(datetime.now().timestamp())
+    def remove_used_or_old():
+        now = int(datetime.now().timestamp())
 
-    # remove posts used or more than a week old
-    for post in posts[:]:
-        if post['id'] in used_posts:
-            posts.remove(post)
-            continue
+        # remove posts used or more than a week old
+        for post in posts[:]:
+            if post['id'] in used_posts_ids:
+                posts.remove(post)
+                continue
 
-        if (now - post['process_time']) > utils.ONE_WEEK_SECONDS:
-            posts.remove(post)
+            if (now - post['process_time']) > utils.ONE_WEEK_SECONDS:
+                posts.remove(post)
+
+    remove_used_or_old()
 
     while not len(posts):
         posts = get_new_posts(posts_to_get_every_time)
+
+        remove_used_or_old()
 
     utils.save_json(posts_path, posts)
 
@@ -181,12 +187,13 @@ def send_a_gif():
         post = get_post_to_send()
         sent = send_to_telegram(post)
 
+        used_posts.append({
+            'id': post['id'],
+            'send_time': int(datetime.now().timestamp())
+        })
+        utils.save_json(used_posts_path, used_posts)
+
         if sent:
-            used_posts.append({
-                'id': sent['id'],
-                'send_time': int(datetime.now().timestamp())
-            })
-            utils.save_json(used_posts_path, used_posts)
             break
 
         seconds = 60
