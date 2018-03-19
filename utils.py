@@ -6,9 +6,7 @@ from pytz import timezone, UTC
 ONE_WEEK_SECONDS = 60 * 60 * 24 * 7
 
 
-def beautiful_now(tehran=True):
-    date = datetime.today()
-
+def beautiful_date(date, tehran=True):
     if tehran:
         date = date.replace(tzinfo=timezone('Asia/Tehran'))
         tz = 'Tehran'
@@ -17,6 +15,10 @@ def beautiful_now(tehran=True):
         tz = 'UTC'
 
     return date.strftime('%a %b %d %Y %H:%M:%S ' + tz)
+
+
+def beautiful_now(tehran=True):
+    return beautiful_date(datetime.today(), tehran=tehran)
 
 
 def load_json(path, data_if_empty):

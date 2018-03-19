@@ -114,10 +114,11 @@ def send_to_telegram(post):
         # download
         response = requests.get(url, stream=True)
         if not (response.status_code == 200 and response.headers['content-type'] in accepted_content_types):
+            print('{}: failed to download {}'.format(utils.beautiful_now(), url))
             continue
 
         file_name = 'downloaded_videos/{}-{}'.format(post_id, int(datetime.now().timestamp() * 1e3))
-        print('Downloading {}...'.format(file_name))
+        print('{}: downloading {} to {}'.format(utils.beautiful_now(), url, file_name))
 
         with open(file_name, 'wb') as fo:
             for chunk in response.iter_content(128):
@@ -127,6 +128,8 @@ def send_to_telegram(post):
         scaled = scale_video(file_name, scaled_path, 360)
 
         if scaled:
+            print('{}: scaled {} to {}'
+                  .format(utils.beautiful_now(), post_id, os.path.getsize(file_name), os.path.getsize(scaled_path)))
             # os.remove(file_name)
             file_name = scaled_path
 
@@ -217,7 +220,10 @@ def main():
         send_a_gif()
 
         sleep_time = 60 * random.randint(50, 70)
-        print('{}: sleeping for {}...'.format(utils.beautiful_now(), sleep_time))
+        now = datetime.now()
+        until = datetime.fromtimestamp(int(now.timestamp()) + sleep_time)
+        print('{}: sleeping for {} seconds until {}'
+              .format(utils.beautiful_date(now), sleep_time, utils.beautiful_date(until)))
         time.sleep(sleep_time)
 
 
