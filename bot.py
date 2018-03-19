@@ -1,11 +1,22 @@
 #!/usr/bin/env python
 
-from telegram.ext import Updater
 import logging
-import praw
-import time
 import os.path
+import time
+import random
+from datetime import datetime
+from pathlib import Path
+
+import praw
 import requests
+from telegram.ext import Updater
+
+import utils
+from ffmpeg_util import scale_video
+
+posts_to_get_every_time = 26
+posts_path = Path('data/posts.json')
+used_posts_path = Path('data/used_posts.json')
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -18,142 +29,187 @@ def error(bot, update, error):
     logger.warning('Update "%s" caused error "%s"' % (update, error))
 
 
-def main():
-    # Create the EventHandler and pass it your bot's token.
-    updater = Updater("473515704:AAFvU-mxPNHOD98iagHdfaCPAeOAduIw-1M")
+def get_new_posts(max_count_to_get):
+    print('{}: getting new posts...'.format(utils.beautiful_now()))
 
     reddit = praw.Reddit(client_id='5HcYHPhZFHR14Q',
                          client_secret='1RVyYaa-0it7zu2hCI2JVo80tuw',
                          user_agent='telegram-poster')
 
-    last_id = ''
+    posts = []
 
-    if os.path.isfile('last_id'):
-        with open('last_id', mode='rt') as f:
-            last_id = f.read()
+    print('{}: getting max {} hot submissions'.format(utils.beautiful_now(), max_count_to_get))
 
-    while True:
-        print('getting submissions after {}'.format(last_id))
-        start_time = time.time()
-        first = True
-        for submission in reddit.subreddit('gifs').hot(limit=30, params={'before': '{}'.format(last_id)}):
-            if submission.distinguished and submission.distinguished == 'moderator':
-                continue
+    for submission in reddit.subreddit('gifs').hot(limit=max_count_to_get):
+        if submission.distinguished and submission.distinguished == 'moderator':
+            continue
 
-            if first:
-                last_id = submission.name
+        caption = '❄     {}\n🙋     {}\n\n{}'.format(submission.title, submission.author.name, submission.shortlink)
 
-                with open('last_id', mode='wt') as f:
-                    f.write(last_id)
+        candidate_urls = []
 
-                first = False
+        try:
+            gif = submission.preview['images'][0]['variants']['gif']
+            source = gif['source']
 
-            caption = '❄     {}\n🙋     {}\n\n{}'.format(submission.title, submission.author.name, submission.shortlink)
+            candidate_urls.append(source)
 
-            candidate_urls = []
+            if 'resolutions' in gif and gif['resolutions']:
+                resolutions = gif['resolutions']
+                candidate_urls.extend(resolutions)
+        except KeyError:
+            pass
 
+        if submission.media:
             try:
-                gif = submission.preview['images'][0]['variants']['gif']
-                source = gif['source']
+                candidate_urls.append(
+                    {'url': submission.media['reddit_video']['scrubber_media_url'], 'width': 200, 'height': 200})
 
-                candidate_urls.append(source)
-
-                if 'resolutions' in gif and gif['resolutions']:
-                    resolutions = gif['resolutions']
-                    candidate_urls.extend(resolutions)
             except KeyError:
                 pass
 
-            if submission.media:
-                try:
-                    candidate_urls.append(
-                        {'url': submission.media['reddit_video']['scrubber_media_url'], 'width': 200, 'height': 200})
+            try:
+                candidate_urls.append(
+                    {'url': submission.media['oembed']['thumbnail_url'], 'width': 200, 'height': 200})
 
-                except KeyError:
-                    pass
+            except KeyError:
+                pass
 
-                try:
-                    candidate_urls.append(
-                        {'url': submission.media['oembed']['thumbnail_url'], 'width': 200, 'height': 200})
+        if not len(candidate_urls):
+            continue
 
-                except KeyError:
-                    pass
+        dim = 'width'
+        if candidate_urls[0]['height'] > candidate_urls[0]['width']:
+            dim = 'height'
 
-            if not len(candidate_urls):
-                continue
+        candidate_urls.sort(key=lambda x: x[dim], reverse=True)
 
-            dim = 'width'
-            if candidate_urls[0]['height'] > candidate_urls[0]['width']:
-                dim = 'height'
+        posts.append({
+            'id': submission.name,
+            'process_time': datetime.now(),
+            'caption': caption,
+            'candidate_urls': candidate_urls
+        })
 
-            candidate_urls.sort(key=lambda x: x[dim], reverse=True)
+    print('{}: got {} hot submissions'.format(utils.beautiful_now(), len(posts)))
+    return posts
 
-            while len(candidate_urls):
-                selected_url = None
-                for cr in candidate_urls:
-                    if cr[dim] <= 400:
-                        selected_url = cr
-                        break
 
-                if not selected_url:
-                    selected_url = candidate_urls[-1]
+def send_to_telegram(post):
+    post_id = post['id']
 
-                candidate_urls.remove(selected_url)
+    print('{}: sending {} to telegram channel...'.format(utils.beautiful_now(), post_id))
+    updater = Updater("473515704:AAFvU-mxPNHOD98iagHdfaCPAeOAduIw-1M")
 
-                url = selected_url['url']
+    candidate_urls = post['candidate_urls']
 
-                response = requests.head(url)
-                if response.status_code == 200:
-                    length = response.headers['Content-Length']
+    while len(candidate_urls):
+        selected_url = candidate_urls[0]
 
-                    if int(length) > 20 * 1000 * 1000:
-                        continue
-                else:
-                    continue
+        candidate_urls.remove(selected_url)
 
-                # try downloading with telegram
-                try:
-                    updater.bot.send_video(chat_id='@GifsSubreddit', video=url, caption=caption,
-                                           timeout=60)
-                    print('sent {}, {}'.format(submission.name, submission.title))
-                    break
-                except Exception as e:
-                    print('{} {}'.format(submission.name, e))
-                    pass
+        url = selected_url['url']
 
-                # download
-                response = requests.get(url, stream=True)
-                if response.status_code == 200 and response.headers['content-type'] == 'image/gif':
-                    fname = submission.name
-                    print('Downloading {}...'.format(fname))
+        # download
+        response = requests.get(url, stream=True)
+        if not (response.status_code == 200 and response.headers['content-type'] == 'image/gif'):
+            continue
 
-                    with open(fname, 'wb') as fo:
-                        for chunk in response.iter_content(4096):
-                            fo.write(chunk)
+        file_name = 'downloaded_videos/{}'.format(post_id)
+        print('Downloading {}...'.format(file_name))
 
-                    uploaded = False
-                    with open(fname, 'rb') as fo:
-                        try:
-                            updater.bot.send_video(chat_id='@GifsSubreddit', video=fo,
-                                                   caption=caption,
-                                                   timeout=60)
-                            print('upload {}, {}'.format(submission.name, submission.title))
-                            uploaded = True
-                        except Exception as e:
-                            print('{} {}'.format(submission.name, e))
-                            pass
+        with open(file_name, 'wb') as fo:
+            for chunk in response.iter_content(128):
+                fo.write(chunk)
 
-                    os.remove(fname)
-                    if uploaded:
-                        break
-                else:
-                    continue
+        scaled_path = '{}-scaled.mp4'.format(file_name)
+        scaled = scale_video(file_name, scaled_path, 360)
 
-        elapsed_time = time.time() - start_time
+        if scaled:
+            # os.remove(file_name)
+            file_name = scaled_path
 
-        if elapsed_time < 20:
-            print('sleeping...')
-            time.sleep(120)
+        print('{}: sending {} sized {} to telegram channel...'
+              .format(utils.beautiful_now(), post_id, os.path.getsize(file_name)))
+
+        uploaded = False
+        with open(file_name, 'rb') as fo:
+            try:
+                updater.bot.send_video(chat_id='@GifsSubreddit', video=fo,
+                                       caption=post['caption'],
+                                       timeout=60)
+                print('{}: uploaded {} to telegram.'.format(utils.beautiful_now(), post_id))
+                uploaded = True
+            except Exception as e:
+                print('{} {}'.format(post_id, e))
+                pass
+
+        # os.remove(file_name)
+        if uploaded:
+            return post
+
+    return False
+
+
+def get_post_to_send():
+    posts = utils.load_json(posts_path, [])
+    used_posts = utils.load_json(used_posts_path, [])
+
+    now = int(datetime.now().timestamp())
+
+    # remove posts used or more than a week old
+    for post in posts[:]:
+        if post['id'] in used_posts:
+            posts.remove(post)
+            continue
+
+        if (now - post['process_time']) > utils.ONE_WEEK_SECONDS:
+            posts.remove(post)
+
+    while not len(posts):
+        posts = get_new_posts(posts_to_get_every_time)
+
+    utils.save_json(posts_path, posts)
+
+    return posts[0]
+
+
+def send_a_gif():
+    used_posts = utils.load_json(used_posts_path, [])
+
+    while True:
+        post = get_post_to_send()
+        sent = send_to_telegram(post)
+
+        if sent:
+            used_posts.append({
+                'id': sent['id'],
+                'send_time': int(datetime.now().timestamp())
+            })
+            utils.save_json(used_posts_path, used_posts)
+            break
+
+        seconds = 60
+        print('{}: failed to send post {}, sleeping {} seconds...'.format(utils.beautiful_now(), post['id'], seconds))
+        time.sleep(seconds)
+
+    now = int(datetime.now().timestamp())
+
+    for post in used_posts[:]:
+        if (now - post['send_time']) > utils.ONE_WEEK_SECONDS:
+            used_posts.remove(post)
+
+    utils.save_json(used_posts_path, used_posts)
+
+
+def main():
+    print('{}: hi!'.format(utils.beautiful_now()))
+
+    while True:
+        send_a_gif()
+
+        sleep_time = 60 * random.randint(50, 70)
+        print('{}: sleeping for ...'.format(utils.beautiful_now(), sleep_time))
 
 
 if __name__ == '__main__':

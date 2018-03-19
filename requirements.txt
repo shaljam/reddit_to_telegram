@@ -1,0 +1,6 @@
+pytz
+telegram
+ujson
+requests
+praw
+pyimgur
