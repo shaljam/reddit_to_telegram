@@ -210,6 +210,7 @@ def main():
 
         sleep_time = 60 * random.randint(50, 70)
         print('{}: sleeping for ...'.format(utils.beautiful_now(), sleep_time))
+        time.sleep(sleep_time)
 
 
 if __name__ == '__main__':
