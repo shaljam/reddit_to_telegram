@@ -41,3 +41,8 @@ def human_format(num, precision=1, suffixes=['', 'k', 'm', 'b']):
 
     m = sum([abs(num / 1000.0 ** x) >= 1 for x in range(1, len(suffixes))])
     return f'{num/1000.0**m:.{precision}f}{suffixes[m]}'
+
+
+def lprint(msg, include_time=True, tehran=True):
+    time_prefix = f'{beautiful_now(tehran=tehran)}: ' if include_time else ''
+    print(f'{time_prefix}{msg}')
