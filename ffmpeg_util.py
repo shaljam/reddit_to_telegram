@@ -1,6 +1,8 @@
 import ffmpeg
 import subprocess
 import re
+import traceback
+from utils import beautiful_now
 
 
 def scale_video(input_path, output_path, max_size):
@@ -28,7 +30,7 @@ def scale_video(input_path, output_path, max_size):
 
     if width < max_size and height < max_size:
         w = width
-        h = height
+        h = -2
     else:
         if width >= height:
             w = max_size
@@ -46,6 +48,11 @@ def scale_video(input_path, output_path, max_size):
     stream = ffmpeg.input(input_path)
     stream = ffmpeg.filter_(stream, 'scale', width=w, height=h)
     stream = ffmpeg.output(stream, output_path, **out_config)
-    ffmpeg.run(stream)
+
+    try:
+        ffmpeg.run(stream)
+    except Exception:
+        print(f'{beautiful_now()}: failed to encode\n{traceback.format_exc()}')
+        return False
 
     return True
