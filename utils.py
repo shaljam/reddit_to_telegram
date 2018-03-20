@@ -1,7 +1,8 @@
+import time
 import ujson
 from datetime import datetime
-from pytz import timezone, UTC
 
+from pytz import timezone, UTC
 
 ONE_WEEK_SECONDS = 60 * 60 * 24 * 7
 
@@ -46,3 +47,10 @@ def human_format(num, precision=1, suffixes=['', 'k', 'm', 'b']):
 def lprint(msg, include_time=True, tehran=True):
     time_prefix = f'{beautiful_now(tehran=tehran)}: ' if include_time else ''
     print(f'{time_prefix}{msg}')
+
+
+def sleep_until(sleep_time):
+    now = datetime.now()
+    until = datetime.fromtimestamp(int(now.timestamp()) + sleep_time)
+    lprint(f'sleeping for {sleep_time} seconds until {beautiful_date(until)}')
+    time.sleep(sleep_time)
