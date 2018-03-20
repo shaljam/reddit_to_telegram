@@ -2,8 +2,8 @@
 
 import logging
 import os.path
-import time
 import random
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -13,11 +13,19 @@ from telegram.ext import Updater
 
 import utils
 from ffmpeg_util import scale_video
+from utils import lprint
 
-posts_to_get_every_time = 26
 posts_path = Path('data/posts.json')
 used_posts_path = Path('data/used_posts.json')
 accepted_content_types = ['image/gif', 'video/mp4']
+config_path = Path('config.json')
+
+min_score = "min_score"
+wait_from = "wait_from"
+wait_to = "wait_to"
+posts_to_get_every_time = "posts_to_get_every_time"
+max_posts_every_time = "max_posts_every_time"
+no_posts_wait_time = "no_posts_wait_time"
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -25,12 +33,23 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 logger = logging.getLogger(__name__)
 
+config = utils.load_json(config_path, {})
+
 
 def error(bot, update, error):
     logger.warning('Update "%s" caused error "%s"' % (update, error))
 
 
+def reload_config():
+    global config
+
+    lprint('reloading config')
+    config = utils.load_json(config_path, {})
+
+
 def get_new_posts(max_count_to_get):
+    used_posts_ids = list(post['id'] for post in utils.load_json(used_posts_path, []))
+
     print('{}: getting new posts...'.format(utils.beautiful_now()))
 
     reddit = praw.Reddit(client_id='5HcYHPhZFHR14Q',
@@ -43,6 +62,15 @@ def get_new_posts(max_count_to_get):
 
     for submission in reddit.subreddit('gifs').hot(limit=max_count_to_get):
         if submission.distinguished and submission.distinguished == 'moderator':
+            lprint(f'skipping moderator submission {submission.name}')
+            continue
+
+        if submission.score < config[min_score]:
+            lprint(f'skipping {submission.name} with score {submission.score}')
+            continue
+
+        if submission.name in used_posts_ids:
+            lprint(f'skipping used submission {submission.name}')
             continue
 
         caption = '🔥 {}\n❄ {}\n🙋 {}\n\n🔗 {}'.format(
@@ -93,10 +121,16 @@ def get_new_posts(max_count_to_get):
             'id': submission.name,
             'process_time': int(datetime.now().timestamp()),
             'caption': caption,
-            'candidate_urls': candidate_urls
+            'candidate_urls': candidate_urls,
+            'score': submission.score
         })
 
-    print('{}: got {} hot submissions'.format(utils.beautiful_now(), len(posts)))
+    lprint(f'got {len(posts)} hot submissions')
+
+    posts.sort(key=lambda x: x['score'], reverse=True)
+    posts = posts[:config[max_posts_every_time]]
+    lprint(f'using first {config[max_posts_every_time]} hot submissions')
+
     return posts
 
 
@@ -172,19 +206,28 @@ def get_post_to_send():
 
         # remove posts used or more than a week old
         for post in posts[:]:
-            if post['id'] in used_posts_ids:
+            post_id = post['id']
+            if post_id in used_posts_ids:
+                lprint(f'removing used post {post_id}')
                 posts.remove(post)
                 continue
 
-            if (now - post['process_time']) > utils.ONE_WEEK_SECONDS:
+            post_process_time = post['process_time']
+            if (now - post_process_time) > utils.ONE_WEEK_SECONDS:
+                lprint(f'removing old post {post_id} with time {post_process_time}')
                 posts.remove(post)
 
     remove_used_or_old()
 
     while not len(posts):
-        posts = get_new_posts(posts_to_get_every_time)
-
+        posts = get_new_posts(config[posts_to_get_every_time])
         remove_used_or_old()
+
+        if not len(posts):
+            lprint('no posts to send!')
+            utils.sleep_until(60 * config[no_posts_wait_time])
+
+            reload_config()
 
     utils.save_json(posts_path, posts)
 
@@ -226,12 +269,14 @@ def main():
     while True:
         send_a_gif()
 
-        sleep_time = 60 * random.randint(50, 70)
+        sleep_time = 60 * random.randint(config[wait_from], config[wait_to])
         now = datetime.now()
         until = datetime.fromtimestamp(int(now.timestamp()) + sleep_time)
         print('{}: sleeping for {} seconds until {}'
               .format(utils.beautiful_date(now), sleep_time, utils.beautiful_date(until)))
         time.sleep(sleep_time)
+
+        reload_config()
 
 
 if __name__ == '__main__':

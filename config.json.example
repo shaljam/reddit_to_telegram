@@ -1,0 +1,8 @@
+{
+    "min_score": 2000,
+    "wait_from": 50,
+    "wait_to": 70,
+    "posts_to_get_every_time": 27,
+    "max_posts_every_time": 4,
+    "no_posts_wait_time": 30
+}
