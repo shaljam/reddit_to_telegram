@@ -12,7 +12,7 @@ def send_to_telegram(file_name):
     updater = Updater("473515704:AAFvU-mxPNHOD98iagHdfaCPAeOAduIw-1M")
 
     scaled_path = '{}-{}-scaled.mp4'.format(file_name, int(datetime.now().timestamp() * 1e3))
-    scaled = ffmpeg_util.scale_video_good(file_name, scaled_path, 360)
+    scaled = ffmpeg_util.scale_video(file_name, scaled_path, 360)
 
     if scaled:
         print('{}: scaled {} to {}'
