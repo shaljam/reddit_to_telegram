@@ -45,7 +45,7 @@ def get_new_posts(max_count_to_get):
         if submission.distinguished and submission.distinguished == 'moderator':
             continue
 
-        caption = '🔥 {}\n❄     {}\n\n🙋     {}\n\n{}'.format(
+        caption = '🔥 {}\n\n❄     {}\n\n🙋     {}\n\n{}'.format(
             utils.human_format(submission.score),
             submission.title,
             submission.author.name,
