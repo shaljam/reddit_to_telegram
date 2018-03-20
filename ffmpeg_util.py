@@ -27,14 +27,15 @@ def scale_video(input_path, output_path, max_size):
         return
 
     if width < max_size and height < max_size:
-        return
-
-    if width >= height:
-        w = max_size
-        h = -2
+        w = width
+        h = height
     else:
-        w = -2
-        h = max_size
+        if width >= height:
+            w = max_size
+            h = -2
+        else:
+            w = -2
+            h = max_size
 
     out_config = {
         'c:v': 'libx264',
