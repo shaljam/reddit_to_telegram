@@ -33,3 +33,11 @@ def load_json(path, data_if_empty):
 def save_json(path, data):
     with open(path, 'w') as data_file:
         ujson.dump(data, data_file)
+
+
+def human_format(num, precision=1, suffixes=['', 'k', 'm', 'b']):
+    if abs(num) < 10000:
+        return f'{num}'
+
+    m = sum([abs(num / 1000.0 ** x) >= 1 for x in range(1, len(suffixes))])
+    return f'{num/1000.0**m:.{precision}f}{suffixes[m]}'
