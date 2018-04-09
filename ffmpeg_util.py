@@ -4,7 +4,7 @@ import traceback
 
 import ffmpeg
 
-from utils import beautiful_now
+from utils import lprint
 
 
 def scale_video(input_path, output_path, max_size):
@@ -12,6 +12,7 @@ def scale_video(input_path, output_path, max_size):
     result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
 
     if not result.stdout:
+        lprint(f'ffprobe command {cmd} returned empty {result.stdout} result {result}')
         return
 
     result = result.stdout.decode("utf-8")
@@ -28,6 +29,7 @@ def scale_video(input_path, output_path, max_size):
         height = int(m.groups()[0])
 
     if not width or not height:
+        lprint(f'failed to get video {input_path} width or height with result {result}')
         return
 
     if width < max_size and height < max_size:
@@ -54,7 +56,8 @@ def scale_video(input_path, output_path, max_size):
     try:
         ffmpeg.run(stream, overwrite_output=True)
     except Exception:
-        print(f'{beautiful_now()}: failed to encode\n{traceback.format_exc()}')
+        lprint(f'failed to encode {input_path}. will print stacktrace...')
+        lprint(f'{traceback.format_exc()}')
         return False
 
     return True
