@@ -163,8 +163,12 @@ def send_to_telegram(post):
             print('{}: uploaded {} to telegram.'.format(utils.beautiful_now(), post_id))
             uploaded = True
 
+            print('{}: forwarding {} to @{}...'.format(utils.beautiful_now(), post_id, config[comments_channel_id]))
+
             _ = updater.bot.forward_message(
                 f'@{config[comments_channel_id]}', f'@{config[main_channel_id]}', result.message_id)
+
+            print('{}: forwarded {} to @{}.'.format(utils.beautiful_now(), post_id, config[comments_channel_id]))
 
             def process_comment_forest(forest, current_length=0):
                 result = ''
@@ -210,12 +214,18 @@ def send_to_telegram(post):
             comments = process_comment_forest(post.comments)
 
             if len(comments):
+                print('{}: {} sending comments to @{}.'
+                      .format(utils.beautiful_now(), post_id, config[comments_channel_id]))
+
                 updater.bot.send_message(
                     chat_id=f'@{config[comments_channel_id]}',
                     text=comments,
                     parse_mode='HTML',
                     disable_web_page_preview=True
                 )
+
+                print('{}: {} sent comments to @{}.'
+                      .format(utils.beautiful_now(), post_id, config[comments_channel_id]))
 
         except Exception as e:
             print('{} {}'.format(post_id, e))
