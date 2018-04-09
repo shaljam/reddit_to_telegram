@@ -269,7 +269,7 @@ def send_a_gif():
             break
 
         seconds = 60
-        print('{}: failed to send post {}, sleeping {} seconds...'.format(utils.beautiful_now(), post['id'], seconds))
+        print('{}: failed to send post {}, sleeping {} seconds...'.format(utils.beautiful_now(), post.id, seconds))
         time.sleep(seconds)
 
     now = int(datetime.now().timestamp())
