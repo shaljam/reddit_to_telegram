@@ -190,9 +190,9 @@ def send_to_telegram(post):
             comments_header = 'Good comments from 👆🏿:'
 
             def process_comment_forest(forest, current_length=0):
-                result = ''
+                forest_result = ''
                 if current_length == 0:
-                    result = comments_header
+                    forest_result = comments_header
 
                 for comment in forest:
                     if isinstance(comment, MoreComments):
@@ -213,10 +213,10 @@ def send_to_telegram(post):
                     for line in comment_body.splitlines():
                         comment_formatted = comment_formatted + f'\n{line_start}{line}'
 
-                    line_break = f'\n{line_start}\n' * (1 if len(result) or current_length else 0)
+                    line_break = f'\n{line_start}\n' * (1 if len(forest_result) or current_length else 0)
                     addition = f'{line_break}{comment_formatted}'
 
-                    length_after_adding_current_comment = current_length + len(result) + len(addition)
+                    length_after_adding_current_comment = current_length + len(forest_result) + len(addition)
                     if length_after_adding_current_comment > config[c_max_comments_message_length]:
                         break
 
@@ -224,11 +224,11 @@ def send_to_telegram(post):
                         replies_formatted =\
                             process_comment_forest(comment.replies, current_length=length_after_adding_current_comment)
 
-                        result += addition + replies_formatted
+                        forest_result += addition + replies_formatted
                     else:
-                        result += addition
+                        forest_result += addition
 
-                return result
+                return forest_result
 
             comments = process_comment_forest(post.comments)
 
