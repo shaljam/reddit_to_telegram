@@ -5,12 +5,14 @@ import os.path
 import random
 import textwrap
 import time
+import traceback
 from datetime import datetime
 from pathlib import Path
 
 import praw
 import youtube_dl
 from praw.models import MoreComments
+from prawcore.exceptions import PrawcoreException
 from telegram.ext import Updater
 
 import utils
@@ -23,11 +25,11 @@ accepted_content_types = ['image/gif', 'video/mp4']
 config_path = Path('config.json')
 
 min_score = "min_score"
-wait_from = "wait_from"
-wait_to = "wait_to"
+wait_from = "wait_from"  # minutes
+wait_to = "wait_to"  # minutes
 posts_to_get_every_time = "posts_to_get_every_time"
 max_posts_every_time = "max_posts_every_time"
-no_posts_wait_time = "no_posts_wait_time"
+no_posts_wait_time = "no_posts_wait_time"  # minutes
 min_comment_score = "min_comment_score"
 main_channel_id = "main_channel_id"
 comments_channel_id = "comments_channel_id"
@@ -37,6 +39,7 @@ c_reddit_client_id = "reddit_client_id"
 c_reddit_client_secret = "reddit_client_secret"
 c_reddit_user_agent = "reddit_user_agent"
 c_max_comments_message_length = "max_comments_message_length"
+c_min_time_since_created = "min_time_since_created"  # minutes
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -71,20 +74,32 @@ def get_new_posts(max_count_to_get):
 
     print('{}: getting max {} hot submissions'.format(utils.beautiful_now(), max_count_to_get))
 
-    for submission in reddit.subreddit('gifs').hot(limit=max_count_to_get):
-        if submission.distinguished and submission.distinguished == 'moderator':
-            lprint(f'skipping moderator submission {submission.id}')
-            continue
+    try:
+        for submission in reddit.subreddit('gifs').hot(limit=max_count_to_get):
+            if submission.distinguished and submission.distinguished == 'moderator':
+                lprint(f'skipping moderator\t submission {submission.id} {submission}')
+                continue
 
-        if submission.score < config[min_score]:
-            lprint(f'skipping {submission.id} with score {submission.score}')
-            continue
+            if submission.over_18:
+                lprint(f'skipping over 18\t submission {submission.id} {submission.title}')
+                continue
 
-        if submission.id in used_posts_ids:
-            lprint(f'skipping used submission {submission.id}')
-            continue
+            if submission.score < config[min_score]:
+                lprint(f'skipping min score\t submission {submission.id} {submission.title} with score {submission.score}')
+                continue
 
-        posts.append(submission)
+            if submission.id in used_posts_ids:
+                lprint(f'skipping used\t\t submission {submission.id} {submission.title}')
+                continue
+
+            if int(datetime.today().timestamp() - submission.created_utc) < (60 * config[c_min_time_since_created]):
+                lprint(f'skipping very new\t  submission {submission.id} {submission.title}')
+                continue
+
+            posts.append(submission)
+    except PrawcoreException:
+        lprint(f'failed to get reddit submissions. will print stacktrace...')
+        lprint(f'{traceback.format_exc()}')
 
     lprint(f'got {len(posts)} hot submissions')
 
@@ -97,8 +112,9 @@ def get_new_posts(max_count_to_get):
 
 def send_to_telegram(post):
     post_id = post.id
+    post_title = post.title
 
-    print('{}: sending {} to telegram channel...'.format(utils.beautiful_now(), post_id))
+    print('{}: sending {} {} to telegram channel...'.format(utils.beautiful_now(), post_id, post_title))
     updater = Updater(config[c_telegram_api_key])
 
     file_name = None
@@ -152,16 +168,16 @@ def send_to_telegram(post):
     uploaded = False
     with open(file_name, 'rb') as fo:
         try:
-            print('{}: sending {} sized {} to telegram channel @{}...'
-                  .format(utils.beautiful_now(), post_id, os.path.getsize(file_name), config[main_channel_id]))
+            print('{}: sending {} {} sized {} to telegram channel @{}...'
+                  .format(utils.beautiful_now(), post_id, post_title, os.path.getsize(file_name), config[main_channel_id]))
 
             result = updater.bot.send_video(chat_id=f'@{config[main_channel_id]}', video=fo,
                                                caption=caption,
                                                timeout=60,
                                                parse_mode='HTML')
 
-            print('{}: uploaded {} to telegram channel @{}.'
-                  .format(utils.beautiful_now(), post_id, config[main_channel_id]))
+            print('{}: uploaded {} {} to telegram channel @{}.'
+                  .format(utils.beautiful_now(), post_id, post_title, config[main_channel_id]))
             uploaded = True
 
             print('{}: forwarding {} to @{}...'.format(utils.beautiful_now(), post_id, config[comments_channel_id]))
@@ -228,8 +244,9 @@ def send_to_telegram(post):
                 print('{}: {} sent comments to @{}.'
                       .format(utils.beautiful_now(), post_id, config[comments_channel_id]))
 
-        except Exception as e:
-            print('{} {}'.format(post_id, e))
+        except Exception:
+            lprint(f'failed to get send {post_id} {post_title} to telegram. will print stacktrace...')
+            lprint(f'{traceback.format_exc()}')
             pass
 
     # os.remove(file_name)

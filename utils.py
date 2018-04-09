@@ -4,7 +4,8 @@ from datetime import datetime
 
 from pytz import timezone, UTC
 
-ONE_WEEK_SECONDS = 60 * 60 * 24 * 7
+ONE_HOUR_SECONDS = 60 * 60
+ONE_WEEK_SECONDS = ONE_HOUR_SECONDS * 24 * 7
 
 
 def beautiful_date(date, tehran=True):
