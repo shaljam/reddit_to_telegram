@@ -3,12 +3,14 @@
 import logging
 import os.path
 import random
+import textwrap
 import time
 from datetime import datetime
 from pathlib import Path
 
 import praw
-import requests
+import youtube_dl
+from praw.models import MoreComments
 from telegram.ext import Updater
 
 import utils
@@ -26,6 +28,15 @@ wait_to = "wait_to"
 posts_to_get_every_time = "posts_to_get_every_time"
 max_posts_every_time = "max_posts_every_time"
 no_posts_wait_time = "no_posts_wait_time"
+min_comment_score = "min_comment_score"
+main_channel_id = "main_channel_id"
+comments_channel_id = "comments_channel_id"
+max_line_chars = "max_line_chars"
+c_telegram_api_key = "telegram_api_key"
+c_reddit_client_id = "reddit_client_id"
+c_reddit_client_secret = "reddit_client_secret"
+c_reddit_user_agent = "reddit_user_agent"
+c_max_comments_message_length = "max_comments_message_length"
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -52,9 +63,9 @@ def get_new_posts(max_count_to_get):
 
     print('{}: getting new posts...'.format(utils.beautiful_now()))
 
-    reddit = praw.Reddit(client_id='5HcYHPhZFHR14Q',
-                         client_secret='1RVyYaa-0it7zu2hCI2JVo80tuw',
-                         user_agent='telegram-poster')
+    reddit = praw.Reddit(client_id=config[c_reddit_client_id],
+                         client_secret=config[c_reddit_client_secret],
+                         user_agent=config[c_reddit_user_agent])
 
     posts = []
 
@@ -73,61 +84,11 @@ def get_new_posts(max_count_to_get):
             lprint(f'skipping used submission {submission.name}')
             continue
 
-        caption = '🔥 {}\n❄ {}\n🙋 {}\n\n🔗 {}'.format(
-            utils.human_format(submission.score),
-            submission.title,
-            submission.author.name,
-            submission.shortlink)
-
-        candidate_urls = []
-
-        try:
-            gif = submission.preview['images'][0]['variants']['gif']
-            source = gif['source']
-
-            candidate_urls.append(source)
-
-            if 'resolutions' in gif and gif['resolutions']:
-                resolutions = gif['resolutions']
-                candidate_urls.extend(resolutions)
-        except KeyError:
-            pass
-
-        if submission.media:
-            try:
-                candidate_urls.append(
-                    {'url': submission.media['reddit_video']['scrubber_media_url'], 'width': 200, 'height': 200})
-
-            except KeyError:
-                pass
-
-            try:
-                candidate_urls.append(
-                    {'url': submission.media['oembed']['thumbnail_url'], 'width': 200, 'height': 200})
-
-            except KeyError:
-                pass
-
-        if not len(candidate_urls):
-            continue
-
-        dim = 'width'
-        if candidate_urls[0]['height'] > candidate_urls[0]['width']:
-            dim = 'height'
-
-        candidate_urls.sort(key=lambda x: x[dim], reverse=True)
-
-        posts.append({
-            'id': submission.name,
-            'process_time': int(datetime.now().timestamp()),
-            'caption': caption,
-            'candidate_urls': candidate_urls,
-            'score': submission.score
-        })
+        posts.append(submission)
 
     lprint(f'got {len(posts)} hot submissions')
 
-    posts.sort(key=lambda x: x['score'], reverse=True)
+    posts.sort(key=lambda x: x.score, reverse=True)
     posts = posts[:config[max_posts_every_time]]
     lprint(f'using first {config[max_posts_every_time]} hot submissions')
 
@@ -135,101 +96,148 @@ def get_new_posts(max_count_to_get):
 
 
 def send_to_telegram(post):
-    post_id = post['id']
+    post_id = post.id
 
     print('{}: sending {} to telegram channel...'.format(utils.beautiful_now(), post_id))
-    updater = Updater("473515704:AAFvU-mxPNHOD98iagHdfaCPAeOAduIw-1M")
+    updater = Updater(config[c_telegram_api_key])
 
-    candidate_urls = post['candidate_urls']
+    file_name = None
 
-    while len(candidate_urls):
-        selected_url = candidate_urls[0]
+    def my_hook(d):
+        nonlocal file_name
+        if d['status'] == 'finished':
+            print('{}: {} done downloading {} with youtube-dl'.format(utils.beautiful_now(), post_id, url))
 
-        candidate_urls.remove(selected_url)
+            if 'filename' in d.keys():
+                file_name = d['filename']
 
-        url = selected_url['url']
+    ydl_opts = {
+        'outtmpl': f'downloaded_videos/{youtube_dl.DEFAULT_OUTTMPL}',
+        'progress_hooks': [my_hook]
+    }
 
-        # download
-        response = requests.get(url, stream=True)
-        if not (response.status_code == 200 and response.headers['content-type'] in accepted_content_types):
-            print('{}: failed to download {}'.format(utils.beautiful_now(), url))
-            continue
+    with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        url = post.url
+        print('{}: {} downloading {} with youtube-dl ...'.format(utils.beautiful_now(), post_id, url))
+        result_code = ydl.download([url])
+        print('{}: {} {} youtube-dl result {}'.format(utils.beautiful_now(), post_id, url, result_code))
 
-        file_name = 'downloaded_videos/{}-{}'.format(post_id, int(datetime.now().timestamp() * 1e3))
-        print('{}: downloading {} to {}'.format(utils.beautiful_now(), url, file_name))
+    if not file_name:
+        print('{}: {} {} youtube-dl no filename!'.format(utils.beautiful_now(), post_id, url))
+        return False
 
-        with open(file_name, 'wb') as fo:
-            for chunk in response.iter_content(128):
-                fo.write(chunk)
+    scaled_path = '{}-scaled.mp4'.format(file_name)
+    scaled = scale_video(file_name, scaled_path, 360)
 
-        scaled_path = '{}-scaled.mp4'.format(file_name)
-        scaled = scale_video(file_name, scaled_path, 360)
+    if not scaled:
+        print('{}: failed to scale {} with file {}'.format(utils.beautiful_now(), post_id, file_name))
+        return False
 
-        if not scaled:
-            print('{}: failed to scale {} with file {}'.format(utils.beautiful_now(), post_id, file_name))
-            return False
+    print('{}: scaled {} to {}'
+          .format(utils.beautiful_now(), post_id, os.path.getsize(file_name), os.path.getsize(scaled_path)))
+    # os.remove(file_name)
+    file_name = scaled_path
 
-        print('{}: scaled {} to {}'
-              .format(utils.beautiful_now(), post_id, os.path.getsize(file_name), os.path.getsize(scaled_path)))
-        # os.remove(file_name)
-        file_name = scaled_path
+    print('{}: sending {} sized {} to telegram channel...'
+          .format(utils.beautiful_now(), post_id, os.path.getsize(file_name)))
 
-        print('{}: sending {} sized {} to telegram channel...'
-              .format(utils.beautiful_now(), post_id, os.path.getsize(file_name)))
+    caption = '🔥 <code>{}</code>\n' \
+              '❄ <a href="{}">{}</a>\n' \
+              '🙋 <a href="https://www.reddit.com/user/{}">{}</a>\n\n'\
+        .format(
+            utils.human_format(post.score),
+            post.shortlink,
+            post.title,
+            post.author.name,
+            post.author.name
+        )
 
-        uploaded = False
-        with open(file_name, 'rb') as fo:
-            try:
-                updater.bot.send_video(chat_id='@GifsSubreddit', video=fo,
-                                       caption=post['caption'],
-                                       timeout=60)
-                print('{}: uploaded {} to telegram.'.format(utils.beautiful_now(), post_id))
-                uploaded = True
-            except Exception as e:
-                print('{} {}'.format(post_id, e))
-                pass
+    uploaded = False
+    with open(file_name, 'rb') as fo:
+        try:
+            result = updater.bot.send_video(chat_id=f'@{config[main_channel_id]}', video=fo,
+                                               caption=caption,
+                                               timeout=60,
+                                               parse_mode='HTML')
 
-        # os.remove(file_name)
-        if uploaded:
-            return post
+            print('{}: uploaded {} to telegram.'.format(utils.beautiful_now(), post_id))
+            uploaded = True
+
+            _ = updater.bot.forward_message(
+                f'@{config[comments_channel_id]}', f'@{config[main_channel_id]}', result.message_id)
+
+            def process_comment_forest(forest, current_length=0):
+                result = ''
+                if current_length == 0:
+                    result = 'Good comments from 👆🏿:'
+
+                for comment in forest:
+                    if isinstance(comment, MoreComments):
+                        continue
+
+                    if not ((comment.depth + 1) * comment.score >= config[min_comment_score]):
+                        continue
+
+                    line_start = "|    " * comment.depth
+                    comment_formatted = f'{line_start}' \
+                                        f'🙋 <a href="https://www.reddit.com/user/{comment.author.name}">' \
+                                        f'{comment.author.name}</a>' \
+                                        f'  🔥 <code>{utils.human_format(comment.score)}</code>'
+
+                    line_chars = config[max_line_chars] - len(line_start)
+
+                    comment_body = textwrap.fill(comment.body, line_chars)
+                    for line in comment_body.splitlines():
+                        comment_formatted = comment_formatted + f'\n{line_start}{line}'
+
+                    line_break = f'\n{line_start}\n' * (1 if len(result) or current_length else 0)
+                    addition = f'{line_break}{comment_formatted}'
+
+                    length_after_adding_current_comment = current_length + len(result) + len(addition)
+                    if length_after_adding_current_comment > config[c_max_comments_message_length]:
+                        break
+
+                    if comment.replies:
+                        replies_formatted =\
+                            process_comment_forest(comment.replies, current_length=length_after_adding_current_comment)
+
+                        result += addition + replies_formatted
+                    else:
+                        result += addition
+
+                return result
+
+            comments = process_comment_forest(post.comments)
+
+            if len(comments):
+                updater.bot.send_message(
+                    chat_id=f'@{config[comments_channel_id]}',
+                    text=comments,
+                    parse_mode='HTML',
+                    disable_web_page_preview=True
+                )
+
+        except Exception as e:
+            print('{} {}'.format(post_id, e))
+            pass
+
+    # os.remove(file_name)
+    if uploaded:
+        return post
 
     return False
 
 
 def get_post_to_send():
-    posts = utils.load_json(posts_path, [])
-    used_posts = utils.load_json(used_posts_path, [])
-    used_posts_ids = list(post['id'] for post in used_posts)
-
-    def remove_used_or_old():
-        now = int(datetime.now().timestamp())
-
-        # remove posts used or more than a week old
-        for post in posts[:]:
-            post_id = post['id']
-            if post_id in used_posts_ids:
-                lprint(f'removing used post {post_id}')
-                posts.remove(post)
-                continue
-
-            post_process_time = post['process_time']
-            if (now - post_process_time) > utils.ONE_WEEK_SECONDS:
-                lprint(f'removing old post {post_id} with time {post_process_time}')
-                posts.remove(post)
-
-    remove_used_or_old()
-
+    posts = []
     while not len(posts):
         posts = get_new_posts(config[posts_to_get_every_time])
-        remove_used_or_old()
 
         if not len(posts):
             lprint('no posts to send!')
             utils.sleep_until(60 * config[no_posts_wait_time])
 
             reload_config()
-
-    utils.save_json(posts_path, posts)
 
     return posts[0]
 
@@ -242,7 +250,7 @@ def send_a_gif():
         sent = send_to_telegram(post)
 
         used_posts.append({
-            'id': post['id'],
+            'id': post.id,
             'send_time': int(datetime.now().timestamp())
         })
         utils.save_json(used_posts_path, used_posts)
