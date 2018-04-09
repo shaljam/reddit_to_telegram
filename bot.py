@@ -93,7 +93,7 @@ def get_new_posts(max_count_to_get):
                 continue
 
             if int(datetime.today().timestamp() - submission.created_utc) < (60 * config[c_min_time_since_created]):
-                lprint(f'skipping very new\t  submission {submission.id} {submission.title}')
+                lprint(f'skipping very new\t submission {submission.id} {submission.title}')
                 continue
 
             posts.append(submission)
