@@ -8,7 +8,7 @@ from utils import beautiful_now
 
 
 def scale_video(input_path, output_path, max_size):
-    cmd = 'ffprobe -v quiet -show_streams {}'.format(input_path)
+    cmd = 'ffprobe -show_streams "{}"'.format(input_path)
     result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
 
     if not result.stdout:
