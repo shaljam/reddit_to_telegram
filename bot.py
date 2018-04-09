@@ -187,10 +187,12 @@ def send_to_telegram(post):
 
             print('{}: forwarded {} to @{}.'.format(utils.beautiful_now(), post_id, config[comments_channel_id]))
 
+            comments_header = 'Good comments from 👆🏿:'
+
             def process_comment_forest(forest, current_length=0):
                 result = ''
                 if current_length == 0:
-                    result = 'Good comments from 👆🏿:'
+                    result = comments_header
 
                 for comment in forest:
                     if isinstance(comment, MoreComments):
@@ -230,7 +232,7 @@ def send_to_telegram(post):
 
             comments = process_comment_forest(post.comments)
 
-            if len(comments):
+            if len(comments) > len(comments_header):
                 print('{}: {} sending comments to @{}.'
                       .format(utils.beautiful_now(), post_id, config[comments_channel_id]))
 
