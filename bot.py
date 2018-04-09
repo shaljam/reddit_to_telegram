@@ -73,15 +73,15 @@ def get_new_posts(max_count_to_get):
 
     for submission in reddit.subreddit('gifs').hot(limit=max_count_to_get):
         if submission.distinguished and submission.distinguished == 'moderator':
-            lprint(f'skipping moderator submission {submission.name}')
+            lprint(f'skipping moderator submission {submission.id}')
             continue
 
         if submission.score < config[min_score]:
-            lprint(f'skipping {submission.name} with score {submission.score}')
+            lprint(f'skipping {submission.id} with score {submission.score}')
             continue
 
-        if submission.name in used_posts_ids:
-            lprint(f'skipping used submission {submission.name}')
+        if submission.id in used_posts_ids:
+            lprint(f'skipping used submission {submission.id}')
             continue
 
         posts.append(submission)
