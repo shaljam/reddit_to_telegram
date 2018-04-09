@@ -133,13 +133,10 @@ def send_to_telegram(post):
         print('{}: failed to scale {} with file {}'.format(utils.beautiful_now(), post_id, file_name))
         return False
 
-    print('{}: scaled {} to {}'
+    print('{}: {} scaled {} to {}'
           .format(utils.beautiful_now(), post_id, os.path.getsize(file_name), os.path.getsize(scaled_path)))
     # os.remove(file_name)
     file_name = scaled_path
-
-    print('{}: sending {} sized {} to telegram channel...'
-          .format(utils.beautiful_now(), post_id, os.path.getsize(file_name)))
 
     caption = '🔥 <code>{}</code>\n' \
               '❄ <a href="{}">{}</a>\n' \
@@ -155,12 +152,16 @@ def send_to_telegram(post):
     uploaded = False
     with open(file_name, 'rb') as fo:
         try:
+            print('{}: sending {} sized {} to telegram channel @{}...'
+                  .format(utils.beautiful_now(), post_id, os.path.getsize(file_name), config[main_channel_id]))
+
             result = updater.bot.send_video(chat_id=f'@{config[main_channel_id]}', video=fo,
                                                caption=caption,
                                                timeout=60,
                                                parse_mode='HTML')
 
-            print('{}: uploaded {} to telegram.'.format(utils.beautiful_now(), post_id))
+            print('{}: uploaded {} to telegram channel @{}.'
+                  .format(utils.beautiful_now(), post_id, config[main_channel_id]))
             uploaded = True
 
             print('{}: forwarding {} to @{}...'.format(utils.beautiful_now(), post_id, config[comments_channel_id]))
