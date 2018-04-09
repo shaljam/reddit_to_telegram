@@ -52,7 +52,7 @@ def scale_video(input_path, output_path, max_size):
     stream = ffmpeg.output(stream, output_path, **out_config)
 
     try:
-        ffmpeg.run(stream)
+        ffmpeg.run(stream, overwrite_output=True)
     except Exception:
         print(f'{beautiful_now()}: failed to encode\n{traceback.format_exc()}')
         return False
