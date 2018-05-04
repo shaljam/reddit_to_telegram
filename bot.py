@@ -201,6 +201,9 @@ def send_to_telegram(post):
                     if isinstance(comment, MoreComments):
                         continue
 
+                    if comment.depth > 3:
+                        continue
+
                     if not ((comment.depth + 1) * comment.score >= config[min_comment_score]):
                         continue
 
