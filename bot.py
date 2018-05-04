@@ -154,15 +154,18 @@ def send_to_telegram(post):
     # os.remove(file_name)
     file_name = scaled_path
 
+    author = '' if not post.author else \
+        f'🙋 <a href="https://www.reddit.com/user/{post.author.name}">{post.author.name}</a>\n'
+
     caption = '🔥 <code>{}</code>\n' \
               '❄ <a href="{}">{}</a>\n' \
-              '🙋 <a href="https://www.reddit.com/user/{}">{}</a>\n\n'\
+              '{}\n' \
+              '@GifsSubreddit'\
         .format(
             utils.human_format(post.score),
             post.shortlink,
             post.title,
-            post.author.name,
-            post.author.name
+            author
         )
 
     uploaded = False
@@ -202,10 +205,13 @@ def send_to_telegram(post):
                         continue
 
                     line_start = "|    " * comment.depth
+                    author = '' if not comment.author else \
+                        f'<a href="https://www.reddit.com/user/{comment.author.name}">' \
+                        f'{comment.author.name}</a>'
+
                     comment_formatted = f'{line_start}' \
-                                        f'🙋 <a href="https://www.reddit.com/user/{comment.author.name}">' \
-                                        f'{comment.author.name}</a>' \
-                                        f'  🔥 <code>{utils.human_format(comment.score)}</code>'
+                                        f'{author}' \
+                                        f'  <code>{utils.human_format(comment.score)}</code>'
 
                     line_chars = config[max_line_chars] - len(line_start)
 
