@@ -14,6 +14,7 @@ import youtube_dl
 from praw.models import MoreComments
 from prawcore.exceptions import PrawcoreException
 from telegram.ext import Updater
+from youtube_dl.utils import YoutubeDLError
 
 import utils
 from ffmpeg_util import scale_video
@@ -135,8 +136,13 @@ def send_to_telegram(post):
     with youtube_dl.YoutubeDL(ydl_opts) as ydl:
         url = post.url
         print('{}: {} downloading {} with youtube-dl ...'.format(utils.beautiful_now(), post_id, url))
-        result_code = ydl.download([url])
-        print('{}: {} {} youtube-dl result {}'.format(utils.beautiful_now(), post_id, url, result_code))
+        try:
+            result_code = ydl.download([url])
+            print('{}: {} {} youtube-dl result {}'.format(utils.beautiful_now(), post_id, url, result_code))
+        except YoutubeDLError:
+            print('{}: {} {} youtube-dl failed with exception.\n{}'
+                  .format(utils.beautiful_now(), post_id, url, traceback.format_exc()))
+            return False
 
     if not file_name:
         print('{}: {} {} youtube-dl no filename!'.format(utils.beautiful_now(), post_id, url))
