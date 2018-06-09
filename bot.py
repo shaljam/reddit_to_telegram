@@ -3,6 +3,7 @@
 import logging
 import os.path
 import random
+import re
 import textwrap
 import time
 import traceback
@@ -211,6 +212,10 @@ def send_to_telegram(post):
                         continue
 
                     if not ((comment.depth + 1) * comment.score >= config[min_comment_score]):
+                        continue
+
+                    #  skip comment if it contains xml tags
+                    if len(re.findall('<[a-z][\s\S]*>', comment.body)):
                         continue
 
                     line_start = "|    " * comment.depth
