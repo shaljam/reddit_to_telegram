@@ -229,7 +229,7 @@ def send_to_telegram(post):
 
                     line_chars = config[max_line_chars] - len(line_start)
 
-                    comment_body = textwrap.fill(comment.body, line_chars)
+                    comment_body = textwrap.fill(comment.body, line_chars, break_long_words=False)
                     for line in comment_body.splitlines():
                         comment_formatted = comment_formatted + f'\n{line_start}{line}'
 
