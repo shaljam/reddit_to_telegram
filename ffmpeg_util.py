@@ -1,36 +1,42 @@
 import re
 import subprocess
 import traceback
-
-import ffmpeg
+import json
+from pathlib import Path
 
 from utils import lprint
 
+IMAGE_EXTS = set(['jpg', 'jpeg', 'png', 'bmp', 'tif'])
+
+
+def run_command(cmd):
+    cp = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    lprint(f'ran command {cmd} with resut:\n{cp}')
+    return cp.returncode, cp.stdout.decode()
+
+
+def is_file_image(path):
+    path = Path(path)
+    suffix = path.suffix[1:].lower()
+    return suffix in IMAGE_EXTS
+
+
+def get_video_info(path):
+    cmd = f'ffprobe -v quiet -print_format json -show_streams -show_format "{path}"'
+    return_code, output = run_command(cmd)
+    if return_code != 0:
+        lprint(f"ffprobe command {cmd} failed with return code {return_code}")
+
+    output = json.loads(output)
+    video_streams = [x for x in output["streams"] if x["codec_type"] == "video"]
+    audio_streams = [x for x in output["streams"] if x["codec_type"] == "audio"]
+    stream = video_streams[0]
+
+    return (stream["width"], stream["height"], bool(len(audio_streams) > 0))
+
 
 def scale_video(input_path, output_path, max_size):
-    cmd = 'ffprobe -show_streams "{}"'.format(input_path)
-    result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
-
-    if not result.stdout:
-        lprint(f'ffprobe command {cmd} returned empty {result.stdout} result {result}')
-        return
-
-    result = result.stdout.decode("utf-8")
-
-    width = None
-    height = None
-
-    m = re.search(r'^width=(\d*)$', result, re.MULTILINE)
-    if m:
-        width = int(m.groups()[0])
-
-    m = re.search(r'^height=(\d*)$', result, re.MULTILINE)
-    if m:
-        height = int(m.groups()[0])
-
-    if not width or not height:
-        lprint(f'failed to get video {input_path} width or height with result {result}')
-        return
+    width, height, has_audio = get_video_info(input_path)
 
     if width < max_size and height < max_size:
         w = width
@@ -43,21 +49,23 @@ def scale_video(input_path, output_path, max_size):
             w = -2
             h = max_size
 
-    out_config = {
-        'c:v': 'libx264',
-        'pix_fmt': 'yuv420p',
-        'movflags': 'faststart'
-    }
+    scale = f"scale={w}:{h}"
+    pix_fmt = "-pix_fmt yuv420p"
 
-    stream = ffmpeg.input(input_path)
-    stream = ffmpeg.filter_(stream, 'scale', width=w, height=h)
-    stream = ffmpeg.output(stream, output_path, **out_config)
+    video_filters = f'-filter:v "{scale}" {pix_fmt} '
 
-    try:
-        ffmpeg.run(stream, overwrite_output=True)
-    except Exception:
-        lprint(f'failed to encode {input_path}. will print stacktrace...')
-        lprint(f'{traceback.format_exc()}')
-        return False
+    cmd = (
+        f"ffmpeg "
+        f'-i "{input_path}" '
+        f"-vsync cfr -movflags +faststart {video_filters} "
+        f'"{output_path}"'
+    )
 
-    return True
+    return_code, _ = run_command(cmd)
+    return return_code == 0, has_audio
+
+
+if __name__ == "__main__":
+    path = '/home/ali/projects/reddit_to_telegram/downloaded_videos/axgthfz5c1l51-axgthfz5c1l51.mp4'
+    cmd = f'ffprobe -v quiet -print_format json -show_streams -show_format "{path}"'
+    run_command(cmd)

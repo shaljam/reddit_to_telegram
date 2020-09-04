@@ -14,5 +14,6 @@
     "reddit_client_secret": "abc123",
     "reddit_user_agent": "telegram-poster",
     "max_comments_message_length": 4096,
-    "min_time_since_created": 360
+    "min_time_since_created": 360,
+    "subreddits": ["aww", "WatchPeopleDieInside", "funny", "PublicFreakout", "gifs"]
 }
