@@ -58,7 +58,7 @@ def scale_video(input_path, output_path, max_size):
         f"ffmpeg "
         f'-i "{input_path}" '
         f"-vsync cfr -movflags +faststart {video_filters} "
-        f'"{output_path}"'
+        f'-strict -2 "{output_path}"'
     )
 
     return_code, _ = run_command(cmd)
