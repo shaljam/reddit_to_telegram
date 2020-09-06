@@ -84,7 +84,15 @@ def get_new_posts(max_count_to_get):
         )
     )
     subreddits = (
-        ['aww', 'WatchPeopleDieInside', 'funny', 'PublicFreakout', 'gifs']
+        [
+            "aww",
+            "WatchPeopleDieInside",
+            "funny",
+            "gifs",
+            "IdiotsInCars",
+            "instantkarma",
+            "Whatcouldgowrong",
+        ]
         if c_subreddits not in config
         else config[c_subreddits]
     )
@@ -207,20 +215,14 @@ def send_to_telegram(post):
         os.remove(file_name)
         file_name = scaled_path
 
-    author = (
-        ''
-        if not post.author
-        else f'🙋 <a href="https://www.reddit.com/user/{post.author.name}">{post.author.name}</a>\n'
-    )
+    chat_id = f'@{config[main_channel_id]}'
 
     caption = (
-        f'🌵 <a href="https://www.reddit.com/r/{sr_name}/">r/{sr_name}</a>\n'
-        '🔥 <code>{}</code>\n'
-        '❄ <a href="{}">{}</a>\n'
-        '{}\n'
-        '@GifsSubreddit'.format(
-            utils.human_format(post.score), post.shortlink, post.title, author
-        )
+        f'✌ #{sr_name}\n'
+        f'💬 {post.title}\n\n'
+        f'🔥 <code>{utils.human_format(post.score)}</code>\n'
+        f'🔗 {post.shortlink}\n\n'
+        f'{chat_id}'
     )
 
     uploaded = False
@@ -238,7 +240,7 @@ def send_to_telegram(post):
 
             if is_image:
                 result = updater.bot.send_photo(
-                    chat_id=f'@{config[main_channel_id]}',
+                    chat_id=chat_id,
                     photo=fo,
                     caption=caption,
                     timeout=60,
@@ -246,7 +248,7 @@ def send_to_telegram(post):
                 )
             elif has_audio:
                 result = updater.bot.send_video(
-                    chat_id=f'@{config[main_channel_id]}',
+                    chat_id=chat_id,
                     video=fo,
                     caption=caption,
                     timeout=60,
@@ -254,7 +256,7 @@ def send_to_telegram(post):
                 )
             else:
                 result = updater.bot.send_animation(
-                    chat_id=f'@{config[main_channel_id]}',
+                    chat_id=chat_id,
                     animation=fo,
                     caption=caption,
                     timeout=60,
@@ -297,7 +299,7 @@ def send_to_telegram(post):
                     if isinstance(comment, MoreComments):
                         continue
 
-                    if comment.depth > 3:
+                    if comment.depth > 2:
                         continue
 
                     if not (
