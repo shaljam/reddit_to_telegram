@@ -25,7 +25,11 @@ def get_video_info(path):
     cmd = f'ffprobe -v quiet -print_format json -show_streams -show_format "{path}"'
     return_code, output = run_command(cmd)
     if return_code != 0:
-        lprint(f"ffprobe command {cmd} failed with return code {return_code}")
+        lprint(
+            f"ffprobe command {cmd} failed with return code {return_code}\noutput:"
+            f"\n{output}"
+        )
+        return None, None, None
 
     output = json.loads(output)
     video_streams = [x for x in output["streams"] if x["codec_type"] == "video"]
@@ -37,6 +41,8 @@ def get_video_info(path):
 
 def scale_video(input_path, output_path, max_size):
     width, height, has_audio = get_video_info(input_path)
+    if width is None:
+        return False, False
 
     if width < max_size and height < max_size:
         w = width
